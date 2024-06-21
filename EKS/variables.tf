@@ -34,6 +34,13 @@ variable "rt-name" {
   default     = "devops-route-table"
 }
 
+variable "rt-name2" {
+  description = "Name of the Route Table"
+  type        = string
+  default     = "devops-route-table-2"
+}
+
+
 variable "iam_role_eks" {
   description = "Name of the IAM Role for EKS"
   type        = string
