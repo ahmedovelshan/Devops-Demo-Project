@@ -13,13 +13,13 @@ variable "igw-name" {
 variable "subnet-name" {
   description = "Name of the Subnet"
   type        = string
-  default     = "devops-subnet"
+  default     = "devops-subnet-1"
 }
 
 variable "subnet-name2" {
   description = "Name of the second Subnet"
   type        = string
-  default     = "devops-subnet2"
+  default     = "devops-subnet-2"
 }
 
 variable "security-group-name" {
