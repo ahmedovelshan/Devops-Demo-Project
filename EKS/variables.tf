@@ -1,37 +1,37 @@
-variable "vpc_name" {
+variable "vpc-name" {
   description = "Name of the VPC"
   type        = string
   default     = "devops-vpc"
 }
 
-variable "igw_name" {
+variable "igw-name" {
   description = "Name of the Internet Gateway"
   type        = string
   default     = "devops-igw"
 }
 
-variable "subnet_name" {
+variable "subnet-name" {
   description = "Name of the Subnet"
   type        = string
   default     = "devops-subnet"
 }
 
-variable "subnet_name2" {
+variable "subnet-name2" {
   description = "Name of the second Subnet"
   type        = string
   default     = "devops-subnet2"
 }
 
-variable "security_group_name" {
+variable "security-group-name" {
   description = "Name of the Security Group"
   type        = string
   default     = "devops-sg"
 }
 
-variable "rt_name2" {
+variable "rt-name" {
   description = "Name of the Route Table"
   type        = string
-  default     = "devops-route-table2"
+  default     = "devops-route-table"
 }
 
 variable "iam_role_eks" {
