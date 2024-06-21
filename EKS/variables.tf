@@ -76,3 +76,15 @@ variable "eksnode_group_name" {
   type        = string
   default     = "devops-Node-Group"
 }
+
+variable "cluster-name" {
+  description = "Name of the EKS Node Group"
+  type        = string
+  default     = "devops-demo-cluster"
+}
+
+variable "eksnode-group-name" {
+  description = "Name of the EKS Node Group"
+  type        = string
+  default     = "devops-demo-node-group"
+}
