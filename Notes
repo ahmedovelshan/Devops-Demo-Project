@@ -1,0 +1,11 @@
+Pluginjs needed to install jenkins
+AWS SDK 
+- Docker
+- Docker Commons
+- Docker Pipeline
+- Docker API
+- docker-build-step
+JDK (Eclipse Temurin Installer)
+SonarQube Scanner
+Maven
+OWASP Dependency Check
