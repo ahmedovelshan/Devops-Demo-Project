@@ -18,55 +18,60 @@ pipeline {
         stage('Initializing Terraform') {
             steps {
                 withAWS(credentials: 'aws-key', region: 'eu-central-1') {
-                dir('EKS') {
-                    script {
-                        sh 'terraform init'
+                    dir('EKS') {
+                        script {
+                            sh 'terraform init'
+                        }
                     }
-                }
                 }
             }
         }
         stage('Validate Terraform Code') {
             steps {
                 withAWS(credentials: 'aws-key', region: 'eu-central-1') {
-                dir('EKS') {
-                    script {
-                        sh 'terraform validate'
+                    dir('EKS') {
+                        script {
+                            sh 'terraform validate'
+                        }
                     }
-                }
                 }
             }
         }
         stage('Terraform Plan') {
             steps {
                 withAWS(credentials: 'aws-key', region: 'eu-central-1') {
-                dir('EKS') {
-                    script {
-                        sh "terraform plan"
+                    dir('EKS') {
+                        script {
+                            sh 'terraform plan'
+                        }
                     }
-                }
                 }
             }
         }
         stage('Terraform Action') {
             steps {
-                withAWS(credentials: 'aws-key', region: 'eu-central-1') { 
-                script {
-                    echo "${params.'Terraform-Action'}"
-                    dir('EKS') {
-                        script {
-                            if (params.'Terraform-Action' == 'apply') {
-                                sh "terraform apply -auto-approve"
-                            } else if (params.'Terraform-Action' == 'destroy') {
-                                sh "terraform destroy -auto-approve"
-                            } else {
-                                error "Invalid value for Terraform-Action: ${params.'Terraform-Action'}"
+                withAWS(credentials: 'aws-key', region: 'eu-central-1') {
+                    script {
+                        echo "${params.'Terraform-Action'}"
+                        dir('EKS') {
+                            script {
+                                if (params.'Terraform-Action' == 'apply') {
+                                    sh 'terraform apply -auto-approve'
+                                } else if (params.'Terraform-Action' == 'destroy') {
+                                    sh 'terraform destroy -auto-approve'
+                                } else {
+                                    error "Invalid value for Terraform-Action: ${params.'Terraform-Action'}"
+                                }
                             }
                         }
                     }
                 }
-                }
             }
+        }
+    }
+    post {
+        always {
+            cleanWs() // Cleans up the workspace after the build
         }
     }
 }
