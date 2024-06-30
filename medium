@@ -307,3 +307,4 @@ Now, we need an admin password to log in to our argoCD.
 ---
 
 http://a1329726dcdaf4e179125d2c60b53c41-1678727684.eu-central-1.elb.amazonaws.com/jpetstore/actions/Catalog.action
+https://medium.com/@21harsh12/devsecops-devops-project-deploying-a-petshop-java-based-application-with-ci-cd-docker-and-e737d3a5501b
