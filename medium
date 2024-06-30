@@ -1,0 +1,309 @@
+---
+
+Deploying a Petshop Java-Based Application with Jenkins, Docker, AWS EKS, ArgoCD
+Project Overview
+Jenkins for Continuous Integration and Continuous Deployment (CI/CD)
+Docker for containerizing the application
+ArgoCD:
+AWS EKS:
+Terraform for Infrastructure as Code (IaC)
+SonarQube for static code analysis and quality assurance
+Trivy for container security scanning
+
+___________________________________________________
+Firstly launch t2.large EC2 instance. OS-Ubuntu 22. With public IP address
+SG access: 8091 for jenkins, 9000 for sonarqube
+Install Jenkins, Docker, and Trivy
+#!/bin/bash
+# For Ubuntu 22.04
+# Intsalling Java
+sudo apt update -y
+sudo apt install openjdk-17-jre -y
+sudo apt install openjdk-17-jdk -y
+java --version
+
+# Installing Jenkins
+curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2023.key | sudo tee \
+  /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+sudo apt-get update -y
+sudo apt-get install jenkins -y
+
+# Installing Docker 
+#!/bin/bash
+sudo apt update
+sudo apt install docker.io -y
+sudo usermod -aG docker jenkins
+sudo usermod -aG docker ubuntu
+sudo systemctl restart docker
+sudo chmod 777 /var/run/docker.sock
+After installation deploy SonarQube as docker container
+# Run Docker Container of Sonarqube
+#!/bin/bash
+docker run -d  --name sonar -p 9000:9000 sonarqube:lts-community
+After Jenkins installation do basic step. Configure Jenkins and install below plugin also configure them
+Pluginjs needed to install jenkins
+Terraform
+- Docker
+- Docker Commons
+- Docker Pipeline
+- Docker API
+- docker-build-step
+JDK (Eclipse Temurin Installer)
+SonarQube Scanner
+Maven
+OWASP Dependency Check
+_________________________________________________________________
+Configure installed plugins JAVA and Maven
+Configure Java and Maven in Global Tool Configuration
+Go to Manage Jenkins → Tools → Install JDK(17) and Maven3(3.6.0) → Click on Apply and Save
+since Apache Maven's default proxy is 8080, we need to change the port of Jenkins from 8080 to let's say 8090, for that:
+sudo systemctl stop jenkins
+sudo systemctl status jenkins
+cd /etc/default
+sudo vi jenkins   #chnage port HTTP_PORT=8090 and save and exit
+cd /lib/systemd/system
+sudo vi jenkins.service  #change Environments="Jenkins_port=8090" save and exit
+sudo systemctl daemon-reload
+sudo systemctl restart jenkins
+sudo systemctl status jenkins
+_________________________________________________________
+Configure SonarQube
+Retrieve the Public IP Address of your EC2 instance. Since SonarQube operates on Port 9000, you can access it via <Public IP>:9000.
+To proceed, navigate to your SonarQube server, then follow these steps:
+Click on Administration → Security → Users → Tokens. Next, update and copy the token by providing a name and clicking on Generate Token.
+Go to the Jenkins Dashboard, then navigate to Manage Jenkins → Credentials → Add Secret Text. The screen should look like this:
+In the SonarQube Dashboard, add a quality gate by navigating to Administration → Configuration → Webhooks.
+#Name- jenkins
+#in url section of quality gate
+<http://jenkins-public-ip:8090>/sonarqube-webhook/
+#leave the secret box blank
+____________________________________________________________
+In Jenkins, navigate to Manage Jenkins -> Available Plugins and install these:
+- Docker
+- Docker Commons
+- Docker Pipeline
+- Docker API
+- docker-build-step
+Now, go to Dashboard → Manage Jenkins → Tools →
+Add DockerHub Username and Password (Access Token) in Global Credentials:
+_________________________________________________________
+Add pipeline
+pipeline{
+    agent any
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+    environment {
+        SCANNER_HOME=tool 'sonar-scanner'
+    }
+    stages{
+        stage ('clean Workspace'){
+            steps{
+                cleanWs()
+            }
+        }
+        stage ('checkout scm') {
+            steps {
+                git 'https://github.com/Harshit-cyber-bit/jpetstore-6'
+            }
+        }
+        stage ('maven compile') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+        stage ('maven Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+        stage("Sonarqube Analysis "){
+            steps{
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Petshop \
+                    -Dsonar.java.binaries=. \
+                    -Dsonar.projectKey=Petshop '''
+                }
+            }
+        }
+        stage("quality gate"){
+            steps {
+                script {
+                  waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                }
+           }
+        }
+        stage ('Build war file'){
+            steps{
+                sh 'mvn clean install -DskipTests=true'
+            }
+        }
+        stage("OWASP Dependency Check"){
+            steps{
+                dependencyCheck additionalArguments: '--scan ./ --format XML ', odcInstallation: 'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage("Docker Image Build") {
+            steps {
+                script {
+                        withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {   
+                            sh 'docker system prune -f'
+                            sh 'docker container prune -f'
+                            sh 'docker build -t petstore .'
+                        }
+                }
+            }
+        }
+        stage('Build and Push Docker Image') {
+            steps {
+                script {
+                    // Generate a unique tag using the Jenkins BUILD_NUMBER variable
+                    def dockerTag = "ahmedovelshan/petstore:${BUILD_NUMBER}"
+
+                    // Tag and push the Docker image
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                        sh "docker tag petstore ${dockerTag}"
+                        sh "docker push ${dockerTag}"
+                    }
+                }
+            }
+        }
+   }
+}
+
+---
+
+Now we will deploy our AWS EKS Cluster. Before it you should take you was user access and secret key.
+Before it you should setup S3 bucket and DynamoTable for your terraform backend
+As jenkins as you should install TERRAFORM plugin and configure it also below plugins
+AWS Credentials
+Pipeline: AWS Steps
+AWS SDK
+properties([
+    parameters([
+        choice(choices: ['apply', 'destroy'], description: 'Select Terraform action', name: 'Terraform-Action')
+    ])
+])
+
+pipeline {
+    agent any
+    tools {
+        terraform 'terraform'
+    }
+    stages {
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'main', url: 'https://github.com/ahmedovelshan/Devops-Demo-Project.git'
+            }
+        }
+        stage('Initializing Terraform') {
+            steps {
+                withAWS(credentials: 'aws-key', region: 'eu-central-1') {
+                    dir('EKS') {
+                        script {
+                            sh 'terraform init'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Validate Terraform Code') {
+            steps {
+                withAWS(credentials: 'aws-key', region: 'eu-central-1') {
+                    dir('EKS') {
+                        script {
+                            sh 'terraform validate'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Terraform Plan') {
+            steps {
+                withAWS(credentials: 'aws-key', region: 'eu-central-1') {
+                    dir('EKS') {
+                        script {
+                            sh 'terraform plan'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Terraform Action') {
+            steps {
+                withAWS(credentials: 'aws-key', region: 'eu-central-1') {
+                    script {
+                        echo "${params.'Terraform-Action'}"
+                        dir('EKS') {
+                            script {
+                                if (params.'Terraform-Action' == 'apply') {
+                                    sh 'terraform apply -auto-approve'
+                                } else if (params.'Terraform-Action' == 'destroy') {
+                                    sh 'terraform destroy -auto-approve'
+                                } else {
+                                    error "Invalid value for Terraform-Action: ${params.'Terraform-Action'}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            cleanWs() // Cleans up the workspace after the build
+        }
+    }
+}
+After it you install AWS CLI to connect your AWS account
+AWSCLI Installation Script
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+sudo apt install unzip -y
+unzip awscliv2.zip
+sudo ./aws/install
+Configure AWS CLI
+Run the below command, and add your keys
+aws configure
+Now, we will configure the EKS Cluster on the Jenkins Server
+Run the below command to configure the EKS Cluster
+Note: sure that your cluster run in eu-central-1 otherwise change you region to cluster region
+aws eks update-kubeconfig --region eu-central-1 --name devops-demo-cluster
+To validate whether the EKS Cluster was successfully configured or not. Run the below command. Before it you should install kubectl CLI
+# Installing Kubectl
+#!/bin/bash
+sudo apt update
+sudo apt install curl -y
+sudo curl -LO "https://dl.k8s.io/release/v1.28.4/bin/linux/amd64/kubectl"
+sudo chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+kubectl version --client
+
+kubectl get nodes
+We will install ArgoCD Controller on EKS Cluster and make publicly available
+Create devops namespace application that we make image early
+kubectl create namespace devops
+Now, we will configure the argoCD controller on our EKS cluster.
+Create a new namespace named argocd and apply the manifest file on the EKS cluster.
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.4.7/manifests/install.yaml
+Validate whether the argocd controller is deployed or not using the below command.
+kubectl get pods -n argocd
+As we have to access our ArgoCD controller through GUI, we need to set up the LoadBalancer for it.
+Run the below command to set up the load balancer which will expose the argoCD controller publicly.
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+Now, you will see Load Balancer on the AWS console.
+Copy the LoadBalancer DNS and paste it into your favorite browser.
+Click on Advanced.
+Click on the highlighted link
+Here, you can see the ArgoCD login page. But we can't do anything because we don't know the password of the admin user.
+Now, we need an admin password to log in to our argoCD.
+
+---
+
+http://a1329726dcdaf4e179125d2c60b53c41-1678727684.eu-central-1.elb.amazonaws.com/jpetstore/actions/Catalog.action
