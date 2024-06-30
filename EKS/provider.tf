@@ -1,9 +1,9 @@
 terraform {
   backend "s3" {
-    bucket         = "demo-devops-project"
+    bucket         = "Demo-Devops-Project"
     region         = "eu-central-1"
-    key            = "Devops-Demo-Project/terraform.tfstate"
-    dynamodb_table = "terraform-tfstate"
+    key            = "Demo-Devops-Project/terraform.tfstate"
+    dynamodb_table = "Lock-Files"
     encrypt        = true
   }
   required_version = ">=0.13.0"
